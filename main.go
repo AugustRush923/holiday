@@ -2,6 +2,7 @@ package main
 
 import (
 	"holiday/config"
+	_ "holiday/dao"
 	"strings"
 
 	"github.com/gin-gonic/gin"
