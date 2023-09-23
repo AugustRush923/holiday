@@ -25,7 +25,7 @@ func init() {
 		config.Cfg.Section("mysql").Key("port").String(),
 		config.Cfg.Section("mysql").Key("database").String(),
 	)
-	fmt.Println(dsn)
+
 	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})

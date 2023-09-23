@@ -16,5 +16,6 @@ func init() {
 	Cfg, err = ini.Load("./settings.ini")
 	if err != nil {
 		fmt.Println("加载配置文件失败！", err)
+		panic("读取配置信息失败")
 	}
 }

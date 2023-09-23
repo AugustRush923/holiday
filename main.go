@@ -3,6 +3,7 @@ package main
 import (
 	"holiday/config"
 	_ "holiday/dao"
+	"holiday/routers"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,9 @@ func main() {
 	// logger, _ := zap.NewDevelopment()
 	// r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
 	// r.Use(ginzap.RecoveryWithZap(logger, true))
+
+	// 路由注册
+	routers.UserRouterInit(r)
 
 	r.Run(strings.Join([]string{config.Cfg.Section("app").Key("ip_address").String(), config.Cfg.Section("app").Key("port").String()}, ":"))
 }
