@@ -43,8 +43,3 @@ func (user User) Dict() (userDict map[string]any) {
 	}
 	return userDict
 }
-
-func (user User) CheckPasswd(passwd string) bool {
-
-	return true
-}
