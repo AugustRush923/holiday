@@ -3,7 +3,6 @@ package dao
 import (
 	"fmt"
 	"holiday/config"
-	"holiday/models"
 	"os"
 
 	"gorm.io/driver/mysql"
@@ -33,5 +32,5 @@ func init() {
 		fmt.Println("数据库连接失败：", err)
 		os.Exit(0)
 	}
-	DB.AutoMigrate(models.Category{}, models.Post{}, models.PostTagsRel{}, models.Tags{}, models.User{})
+
 }

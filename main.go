@@ -5,6 +5,7 @@ import (
 	_ "holiday/dao"
 	"holiday/middlewares"
 	"holiday/routers"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,5 +23,9 @@ func main() {
 	// 路由注册
 	routers.UserRouterInit(r)
 
-	r.Run(strings.Join([]string{config.Cfg.Section("app").Key("ip_address").String(), config.Cfg.Section("app").Key("port").String()}, ":"))
+	err := r.Run(strings.Join([]string{config.Cfg.Section("app").Key("ip_address").String(), config.Cfg.Section("app").Key("port").String()}, ":"))
+	if err != nil {
+		zap.L().Error("服务启动失败...")
+		os.Exit(1)
+	}
 }
