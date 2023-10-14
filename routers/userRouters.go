@@ -13,5 +13,6 @@ func UserRouterInit(r *gin.Engine) {
 		userRouters.GET("/:id", user.UserController{}.GetUserDetail)
 		userRouters.POST("/login", user.UserController{}.Login)
 		userRouters.POST("/logout", user.UserController{}.Logout)
+		userRouters.POST("/register", user.UserController{}.Register)
 	}
 }

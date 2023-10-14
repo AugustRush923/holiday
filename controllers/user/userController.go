@@ -2,6 +2,7 @@ package user
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"holiday/dao"
 	"holiday/models"
 	"holiday/utils"
@@ -107,4 +108,34 @@ func (UserController) Logout(ctx *gin.Context) {
 	ctx.SetCookie("nickname", "", -1, "/", "", false, true)
 	ctx.SetCookie("mobile", "", -1, "/", "", false, true)
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "退出成功"})
+}
+
+func (UserController) Register(ctx *gin.Context) {
+	user := models.User{}
+	var body struct {
+		Mobile string `json:"mobile"`
+		Passwd string `json:"passwd"`
+	}
+
+	if err := ctx.BindJSON(&body); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数不全"})
+		return
+	}
+	user.Mobile = body.Mobile
+	user.NickName = body.Mobile
+	user.PasswordHash = utils.EncryptPasswd(body.Passwd)
+	user.AvatarUrl = "default avatar"
+	err := dao.DB.Model(models.User{}).Select("mobile", "nick_name", "password_hash", "avatar_url").Create(&user).Error
+
+	if err != nil {
+		zap.L().Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "创建失败"})
+		return
+	}
+
+	ctx.SetCookie("user_id", strconv.Itoa(int(user.ID)), 315360000, "/", "", false, true)
+	ctx.SetCookie("nickname", user.NickName, 315360000, "/", "", false, true)
+	ctx.SetCookie("mobile", user.Mobile, 315360000, "/", "", false, true)
+
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "注册成功"})
 }
