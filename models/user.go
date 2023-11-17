@@ -20,7 +20,11 @@ func (User) TableName() string {
 	return "info_user"
 }
 
-func (user User) Dict() (userDict map[string]any) {
+func (user User) ToDict() (userDict map[string]any) {
+	isEmpty := user == User{}
+	if isEmpty {
+		return make(map[string]any)
+	}
 	if user.IsAdmin == 1 {
 		userDict = map[string]any{
 			"id":         user.ID,

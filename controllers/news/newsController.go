@@ -1,0 +1,115 @@
+package news
+
+import (
+	"errors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"holiday/dao"
+	"holiday/models"
+	"holiday/utils"
+	"net/http"
+)
+
+type NewsController struct {
+}
+
+func (NewsController) NewsInfoDetail(ctx *gin.Context) {
+	news := models.News{}
+	newsId := ctx.Param("news_id")
+	// 初始化session对象
+	session := sessions.Default(ctx)
+	//	获取用户信息
+	user := models.User{}
+	userId := session.Get("user_id")
+	if userId != nil {
+		dao.DB.Where("id=?", userId).Find(&user)
+	}
+	userIsEmpty := user == models.User{}
+	// 查询新闻数据
+	err := dao.DB.First(&news, newsId).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "查询不存在"})
+			return
+		}
+		zap.L().Error("查询错误:" + err.Error())
+		ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "查询错误"})
+		return
+	}
+	isEmpty := news == models.News{}
+	if !isEmpty {
+		news.Clicks += 1
+		dao.DB.Save(&news)
+	}
+
+	//获取点击排行数据
+	var clickNews []models.News
+	dao.DB.Order("clicks Desc").Limit(10).Find(&clickNews)
+
+	//获取当前新闻的评论
+	var comments []models.Comment
+	dao.DB.Where("news_id=?", news.ID).Order("create_time Desc").Find(&comments)
+	var commentsID []uint
+	if !userIsEmpty {
+		for _, comment := range comments {
+			commentsID = append(commentsID, comment.ID)
+		}
+		if len(commentsID) > 0 {
+			var commentLikes []models.CommentLike
+			//	取到当前用户在当前新闻的所有评论点赞的记录
+			dao.DB.Where("comment_id in (?) AND user_id=?", commentsID, user.ID).Find(&commentLikes)
+			//取出记录中所有的评论id
+			var commentLikesID []uint
+			for _, like := range commentLikes {
+				commentLikesID = append(commentLikesID, like.ID)
+			}
+		}
+	}
+	var commentList []map[string]any
+	for _, comment := range comments {
+		commentDict := comment.ToDict()
+		commentDict["is_like"] = false
+		//判断用户是否点赞该评论
+		inSlice := utils.IsUintInSlice(commentsID, comment.ID)
+		if !userIsEmpty && inSlice {
+			commentDict["is_like"] = true
+		}
+		commentList = append(commentList, commentDict)
+	}
+	//获取分类信息
+	var categories []models.Category
+	dao.DB.Find(&categories)
+
+	//当前登录用户是否关注当前新闻作者
+	isFollowed := false
+	//判断是否收藏该新闻，默认值为 false
+	isCollected := false
+
+	if !userIsEmpty {
+		userFans := models.UserFans{}
+		dao.DB.Where("followed_id=? AND follower_id=?", user.ID, news.UserID).Find(&userFans)
+		userFansIsEmpty := userFans == models.UserFans{}
+		if !userFansIsEmpty {
+			isFollowed = true
+		}
+
+		userCollection := models.UserCollection{}
+		dao.DB.Where("news_id = ? AND user_id = ?", news.ID, user.ID).Find(&userCollection)
+		userCollectionIsEmpty := userCollection == models.UserCollection{}
+		if !userCollectionIsEmpty {
+			isCollected = true
+		}
+	}
+	responseData := map[string]any{
+		"user_info":       user.ToDict(),
+		"news":            news.ToDict(),
+		"click_news_list": clickNews,
+		"comments":        comments,
+		"categories":      categories,
+		"is_collected":    isCollected,
+		"is_followed":     isFollowed,
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": responseData})
+}
