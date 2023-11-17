@@ -113,3 +113,55 @@ func (NewsController) NewsInfoDetail(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": responseData})
 }
+
+func (NewsController) NewsCollect(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	//	获取用户信息
+	user := models.User{}
+	userId := session.Get("user_id")
+	if userId != nil {
+		dao.DB.Where("id=?", userId).Find(&user)
+	}
+	userIsEmpty := user == models.User{}
+	if userIsEmpty {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "用户未登录"})
+		return
+	}
+	// 获取参数
+	type RequestJson struct {
+		Action string `json:"action"`
+		NewsID string `json:"news_id"`
+	}
+	var requestJson RequestJson
+	err := ctx.BindJSON(&requestJson)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		return
+	}
+
+	news := models.News{}
+	err = dao.DB.First(&news, requestJson.NewsID).Error
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "数据不存在"})
+		return
+	}
+
+	if requestJson.Action == "collect" {
+		userCollect := models.UserCollection{UserID: uint64(user.ID), NewsID: uint64(news.ID)}
+		err = dao.DB.Create(&userCollect).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "收藏失败"})
+			zap.L().Error("收藏失败: " + err.Error())
+			return
+		}
+	} else {
+		err = dao.DB.Where("user_id = ? AND news_id = ?", user.ID, news.ID).Delete(&models.UserCollection{}).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "取消收藏失败"})
+			zap.L().Error("取消收藏失败: " + err.Error())
+			return
+		}
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "操作成功"})
+	return
+}

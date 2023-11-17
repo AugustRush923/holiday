@@ -8,6 +8,7 @@ import (
 func NewsRouterInit(r *gin.Engine) {
 	userRouters := r.Group("/news")
 	{
-		userRouters.GET("/:news_id", news.NewsController{}.NewsInfoDetail)
+		userRouters.GET("/:news_id", news.NewsController{}.NewsInfoDetail)   // 新闻详情
+		userRouters.POST("/news_collect", news.NewsController{}.NewsCollect) // 新闻收藏/取消收藏
 	}
 }
