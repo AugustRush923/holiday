@@ -138,6 +138,11 @@ func (NewsController) NewsCollect(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
 		return
 	}
+	action := map[string]bool{"collect": true, "cancel": true}
+	if !action[requestJson.Action] {
+		ctx.JSON(http.StatusForbidden, gin.H{"status": false, "message": "不被允许的操作"})
+		return
+	}
 
 	news := models.News{}
 	err = dao.DB.First(&news, requestJson.NewsID).Error
@@ -147,6 +152,12 @@ func (NewsController) NewsCollect(ctx *gin.Context) {
 	}
 
 	if requestJson.Action == "collect" {
+		var exist int64
+		dao.DB.Where("user_id = ? AND news_id = ?", user.ID, news.ID).Find(&models.UserCollection{}).Count(&exist)
+		if exist > 0 {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "已收藏"})
+			return
+		}
 		userCollect := models.UserCollection{UserID: uint64(user.ID), NewsID: uint64(news.ID)}
 		err = dao.DB.Create(&userCollect).Error
 		if err != nil {
@@ -164,4 +175,74 @@ func (NewsController) NewsCollect(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "操作成功"})
 	return
+}
+
+func (NewsController) NewsFollowed(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	userID := session.Get("user_id")
+	user := models.User{}
+	if userID != nil {
+		dao.DB.Find(&user, userID)
+	}
+	userIsEmpty := user == models.User{}
+	if userIsEmpty {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "用户未登录"})
+		return
+	}
+	var action = map[string]bool{"follow": true, "unfollowed": true}
+	type RequestJSON struct {
+		UserID string `json:"user_id"`
+		Action string `json:"action"`
+	}
+	var requestJson RequestJSON
+	err := ctx.BindJSON(&requestJson)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数不全"})
+		return
+	}
+	if !action[requestJson.Action] {
+		ctx.JSON(http.StatusForbidden, gin.H{"status": false, "message": "不被允许的操作"})
+		return
+	}
+
+	//查询要关注的用户信息
+	var targetUser models.User
+	dao.DB.First(&targetUser, requestJson.UserID)
+	targetUserIsEmpty := targetUser == models.User{}
+	if targetUserIsEmpty {
+		ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "关注的用户不存在"})
+		return
+	}
+
+	if user.ID == targetUser.ID {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "不能对自己进行操作"})
+		return
+	}
+
+	if requestJson.Action == "follow" { // 关注
+		userFans := models.UserFans{}
+		dao.DB.Where("follower_id = ? AND followed_id = ?", user.ID, targetUser.ID).Find(&userFans)
+		userFansIsEmpty := userFans == models.UserFans{}
+		if !userFansIsEmpty {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "已关注"})
+			return
+		}
+		err = dao.DB.Create(&models.UserFans{
+			FollowerID: uint64(user.ID),
+			FollowedID: uint64(targetUser.ID),
+		}).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "关注失败"})
+			zap.L().Error("用户关注出错: " + err.Error())
+			return
+		}
+	} else { // 取消关注
+		err = dao.DB.Where("follower_id = ? AND followed_id = ?", user.ID, targetUser.ID).Delete(&models.UserFans{}).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "取消关注失败"})
+			zap.L().Error("用户取消关注出错: " + err.Error())
+			return
+		}
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "操作成功"})
 }

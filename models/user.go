@@ -1,6 +1,7 @@
 package models
 
 import (
+	"holiday/dao"
 	"time"
 )
 
@@ -25,25 +26,34 @@ func (user User) ToDict() (userDict map[string]any) {
 	if isEmpty {
 		return make(map[string]any)
 	}
-	if user.IsAdmin == 1 {
-		userDict = map[string]any{
-			"id":         user.ID,
-			"nickname":   user.NickName,
-			"mobile":     user.Mobile,
-			"avatar_url": user.AvatarUrl,
-			"last_login": user.LastLogin,
-			"gender":     user.Gender,
-		}
-	} else {
-		userDict = map[string]any{
-			"id":              user.ID,
-			"nickname":        user.NickName,
-			"mobile":          user.Mobile,
-			"gender":          user.Gender,
-			"signature":       user.Signature,
-			"followers_count": 0,
-			"news_count":      0,
-		}
+	var followersCount int64
+	dao.DB.Where("followed_id = ?", user.ID).Find(&UserFans{}).Count(&followersCount)
+	var newsCount int64
+	dao.DB.Where("user_id = ?", user.ID).Find(&News{}).Count(&newsCount)
+	userDict = map[string]any{
+		"id":              user.ID,
+		"nickname":        user.NickName,
+		"mobile":          user.Mobile,
+		"gender":          user.Gender,
+		"signature":       user.Signature,
+		"followers_count": followersCount,
+		"news_count":      newsCount,
+	}
+	return userDict
+}
+
+func (user User) ToAdminDict() (userDict map[string]any) {
+	isEmpty := user == User{}
+	if isEmpty {
+		return make(map[string]any)
+	}
+	userDict = map[string]any{
+		"id":         user.ID,
+		"nickname":   user.NickName,
+		"mobile":     user.Mobile,
+		"avatar_url": user.AvatarUrl,
+		"last_login": user.LastLogin,
+		"gender":     user.Gender,
 	}
 	return userDict
 }
