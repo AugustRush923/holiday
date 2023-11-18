@@ -10,6 +10,7 @@ import (
 	"holiday/models"
 	"holiday/utils"
 	"net/http"
+	"strconv"
 )
 
 type NewsController struct {
@@ -245,4 +246,73 @@ func (NewsController) NewsFollowed(ctx *gin.Context) {
 		}
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "操作成功"})
+}
+
+func (NewsController) NewsComment(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	userID := session.Get("user_id")
+	var user models.User
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "用户不存在"})
+				return
+			}
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询失败"})
+			zap.L().Error("查询失败: " + err.Error())
+			return
+		}
+	}
+
+	userIsEmpty := user == models.User{}
+	if userIsEmpty {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "用户未登录"})
+		return
+	}
+
+	type RequestJSON struct {
+		NewsID   string `json:"news_id"`
+		Comment  string `json:"comment"`
+		ParentID string `json:"parent_id"`
+	}
+	var requestJSON RequestJSON
+	err := ctx.BindJSON(&requestJSON)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		return
+	}
+
+	//	查询新闻信息
+	var news models.News
+	err = dao.DB.First(&news, requestJSON.NewsID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "数据不存在"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询错误"})
+		zap.L().Error("查询失败：" + err.Error())
+		return
+	}
+
+	comment := models.Comment{UserID: uint64(user.ID), NewsID: uint64(news.ID), Content: requestJSON.Comment}
+	if requestJSON.ParentID != "" {
+		parentID, strconvErr := strconv.Atoi(requestJSON.ParentID)
+		if strconvErr != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "ParentID转换失败"})
+			zap.L().Error("ParentID转换失败" + err.Error())
+			return
+		}
+		uintID := uint64(parentID)
+		comment.ParentID = &uintID
+	}
+
+	err = dao.DB.Create(&comment).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "新增评论失败"})
+		zap.L().Error("新增评论失败：" + err.Error())
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "success", "data": comment.ToDict()})
 }

@@ -5,7 +5,7 @@ type Comment struct {
 	UserID    uint64
 	NewsID    uint64
 	Content   string
-	ParentID  uint64
+	ParentID  *uint64
 	LikeCount uint64
 }
 
@@ -31,4 +31,8 @@ type CommentLike struct {
 	BaseModel
 	CommentID uint64
 	UserID    uint64
+}
+
+func (CommentLike) TableName() string {
+	return "info_comment_like"
 }
