@@ -44,17 +44,19 @@ func (NewsController) NewsInfoDetail(ctx *gin.Context) {
 		news.Clicks += 1
 		dao.DB.Save(&news)
 	}
-
+	var (
+		comments       []models.Comment
+		commentsID     []uint
+		commentLikes   []models.CommentLike
+		commentLikesID []uint64
+		clickNews      []models.News
+	)
 	//获取点击排行数据
-	var clickNews []models.News
 	dao.DB.Order("clicks Desc").Limit(10).Find(&clickNews)
 
 	//获取当前新闻的评论
-	var comments []models.Comment
 	dao.DB.Where("news_id=?", news.ID).Order("create_time Desc").Find(&comments)
-	var commentsID []uint
-	var commentLikes []models.CommentLike
-	var commentLikesID []uint64
+
 	if !userIsEmpty {
 		for _, comment := range comments {
 			commentsID = append(commentsID, comment.ID)
