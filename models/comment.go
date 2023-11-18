@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Comment struct {
 	BaseModel
 	UserID    uint64
@@ -28,9 +30,10 @@ func (comment Comment) ToDict() map[string]any {
 }
 
 type CommentLike struct {
-	BaseModel
-	CommentID uint64
-	UserID    uint64
+	CommentID   uint64
+	UserID      uint64
+	CreatedTime time.Time `gorm:"column:create_time;type:datetime(0);autoCreateTime;comment:创建时间" json:"created_time"`
+	UpdatedTime time.Time `gorm:"column:update_time;type:datetime(0);autoUpdateTime;comment:更新时间" json:"updated_time"`
 }
 
 func (CommentLike) TableName() string {

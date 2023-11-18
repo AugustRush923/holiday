@@ -53,18 +53,18 @@ func (NewsController) NewsInfoDetail(ctx *gin.Context) {
 	var comments []models.Comment
 	dao.DB.Where("news_id=?", news.ID).Order("create_time Desc").Find(&comments)
 	var commentsID []uint
+	var commentLikes []models.CommentLike
+	var commentLikesID []uint64
 	if !userIsEmpty {
 		for _, comment := range comments {
 			commentsID = append(commentsID, comment.ID)
 		}
 		if len(commentsID) > 0 {
-			var commentLikes []models.CommentLike
 			//	取到当前用户在当前新闻的所有评论点赞的记录
 			dao.DB.Where("comment_id in (?) AND user_id=?", commentsID, user.ID).Find(&commentLikes)
 			//取出记录中所有的评论id
-			var commentLikesID []uint
 			for _, like := range commentLikes {
-				commentLikesID = append(commentLikesID, like.ID)
+				commentLikesID = append(commentLikesID, like.CommentID)
 			}
 		}
 	}
@@ -73,7 +73,7 @@ func (NewsController) NewsInfoDetail(ctx *gin.Context) {
 		commentDict := comment.ToDict()
 		commentDict["is_like"] = false
 		//判断用户是否点赞该评论
-		inSlice := utils.IsUintInSlice(commentsID, comment.ID)
+		inSlice := utils.IsUintInSlice(commentLikesID, uint64(comment.ID))
 		if !userIsEmpty && inSlice {
 			commentDict["is_like"] = true
 		}
@@ -107,7 +107,7 @@ func (NewsController) NewsInfoDetail(ctx *gin.Context) {
 		"user_info":       user.ToDict(),
 		"news":            news.ToDict(),
 		"click_news_list": clickNews,
-		"comments":        comments,
+		"comments":        commentList,
 		"categories":      categories,
 		"is_collected":    isCollected,
 		"is_followed":     isFollowed,
@@ -315,4 +315,97 @@ func (NewsController) NewsComment(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "success", "data": comment.ToDict()})
+}
+
+func (NewsController) NewsCommentLike(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	userID := session.Get("user_id")
+	var user models.User
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "用户不存在"})
+				return
+			}
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询失败"})
+			zap.L().Error("查询失败: " + err.Error())
+			return
+		}
+	}
+	userIsEmpty := user == models.User{}
+	if userIsEmpty {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "用户未登录"})
+		return
+	}
+
+	action := map[string]bool{"add": true, "remove": true}
+
+	type RequestJSON struct {
+		//NewsID    string `json:"news_id"`
+		CommentID string `json:"comment_id"`
+		Action    string `json:"action"`
+	}
+	var requestJSON RequestJSON
+	err := ctx.BindJSON(&requestJSON)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "JSON数据绑定失败"})
+		zap.L().Error("JSON数据绑定失败: " + err.Error())
+		return
+	}
+
+	if !action[requestJSON.Action] {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		return
+	}
+
+	//	查询评论数据
+	var comment models.Comment
+	err = dao.DB.First(&comment, requestJSON.CommentID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "用户不存在"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询失败"})
+		zap.L().Error("查询失败: " + err.Error())
+		return
+	}
+
+	var commentLike models.CommentLike
+	err = dao.DB.Where("comment_id = ? AND user_id = ?", comment.ID, user.ID).First(&commentLike).Error
+	if requestJSON.Action == "add" {
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				dao.DB.Create(&models.CommentLike{
+					CommentID: uint64(comment.ID),
+					UserID:    uint64(user.ID),
+				})
+				// 增加点赞条数
+				comment.LikeCount += 1
+				dao.DB.Model(&comment).Update("like_count", comment.LikeCount)
+			} else {
+				zap.L().Error("查询失败: " + err.Error())
+				return
+			}
+		} else {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "已点过赞"})
+			return
+		}
+	} else {
+		// 删除点赞数据
+		if err == nil {
+			dao.DB.Where("comment_id = ? AND user_id = ?", comment.ID, user.ID).Delete(&commentLike)
+			//	减少点赞条数
+			comment.LikeCount -= 1
+			err = dao.DB.Model(&comment).Update("like_count", comment.LikeCount).Error
+			if err != nil {
+				zap.L().Error("更新失败：" + err.Error())
+			}
+		} else {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "未点过赞"})
+			return
+		}
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "操作成功"})
 }
