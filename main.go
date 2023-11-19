@@ -31,6 +31,7 @@ func main() {
 	// 路由注册
 	routers.UserRouterInit(r)
 	routers.NewsRouterInit(r)
+	routers.IndexRouterInit(r)
 
 	err := r.Run(strings.Join([]string{config.Cfg.Section("app").Key("ip_address").String(), config.Cfg.Section("app").Key("port").String()}, ":"))
 	if err != nil {

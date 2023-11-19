@@ -38,3 +38,20 @@ func (news News) ToDict() map[string]any {
 		"news_updated_time":    news.UpdatedTime,
 	}
 }
+
+func (news News) ToBasicDict() map[string]any {
+	isEmpty := news == News{}
+	if isEmpty {
+		return make(map[string]any)
+	}
+
+	return map[string]any{
+		"news_id":              news.ID,
+		"news_title":           news.Title,
+		"news_source":          news.Source,
+		"news_digest":          news.Digest,
+		"news_clicks":          news.Clicks,
+		"news_index_image_url": news.IndexImageUrl,
+		"news_created_time":    news.CreatedTime.Format("2006-01-02 15:04:05"),
+	}
+}
