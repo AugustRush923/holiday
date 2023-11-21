@@ -179,3 +179,19 @@ func (ProfileController) GetCollection(ctx *gin.Context) {
 		"current_page": pageInt,
 	}})
 }
+
+func (ProfileController) GetNewsRelease(ctx *gin.Context) {
+	var categories []models.Category
+	dao.DB.Find(&categories)
+	categoryList := make([]map[string]any, 0)
+	for _, category := range categories {
+		if category.ID == 1 {
+			// 默认首页ID为1的数据
+			continue
+		}
+		categoryList = append(categoryList, category.ToDict())
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"category_list": categoryList,
+	}})
+}
