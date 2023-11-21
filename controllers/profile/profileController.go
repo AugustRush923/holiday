@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap"
 	"holiday/dao"
 	"holiday/models"
+	"holiday/utils"
 	"net/http"
 )
 
@@ -89,4 +90,42 @@ func (ProfileController) UpdateUserInfo(ctx *gin.Context) {
 		zap.L().Error("session更新失败: " + err.Error())
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "更新成功"})
+}
+
+func (ProfileController) ChangePassword(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	var user models.User
+	userID := session.Get("user_id")
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询错误"})
+			zap.L().Error("用户查询错误: " + err.Error())
+			return
+		}
+	}
+
+	var RequestJSON struct {
+		OldPasswd string `json:"old_passwd"`
+		NewPasswd string `json:"new_passwd"`
+	}
+	var requestJSON = RequestJSON
+	err := ctx.BindJSON(&requestJSON)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		return
+	}
+
+	if user.PasswordHash != utils.EncryptPasswd(requestJSON.OldPasswd) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "密码输入错误"})
+		return
+	}
+	newPassword := utils.EncryptPasswd(requestJSON.NewPasswd)
+	err = dao.DB.Model(&user).Update("password_hash", newPassword).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "更新密码失败"})
+		zap.L().Error("更新密码失败: " + err.Error())
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "更新密码成功"})
 }
