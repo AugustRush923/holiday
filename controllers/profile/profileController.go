@@ -243,3 +243,43 @@ func (ProfileController) ReleaseNews(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "提交成功,等待审核"})
 }
+
+func (ProfileController) GetNewsList(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	var user models.User
+	userID := session.Get("user_id")
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询错误"})
+			zap.L().Error("用户查询错误: " + err.Error())
+			return
+		}
+	}
+
+	page := ctx.DefaultQuery("page", "1")
+	pageInt, err := strconv.Atoi(page)
+	if err != nil {
+		zap.L().Error("参数错误: " + err.Error())
+		pageInt = 1
+	}
+	offset := (pageInt - 1) * pageInt
+	var newsCount int64
+	var news []models.News
+	dao.DB.Where("user_id = ?", user.ID).Offset(offset).Limit(10).Order("create_time Desc").Find(&news).Count(&newsCount)
+
+	totalPage := 0
+	if pageInt != 0 {
+		totalPage = int(math.Ceil(float64(newsCount) / float64(pageInt)))
+	}
+
+	newsList := make([]map[string]any, 0)
+	for _, n := range news {
+		newsList = append(newsList, n.ToReviewDict())
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"total_page":   totalPage,
+		"current_page": pageInt,
+		"news_list":    newsList,
+	}})
+}
