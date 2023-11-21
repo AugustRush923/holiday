@@ -7,7 +7,9 @@ import (
 	"holiday/dao"
 	"holiday/models"
 	"holiday/utils"
+	"math"
 	"net/http"
+	"strconv"
 )
 
 type ProfileController struct {
@@ -128,4 +130,52 @@ func (ProfileController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "更新密码成功"})
+}
+
+func (ProfileController) GetCollection(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	var user models.User
+	userID := session.Get("user_id")
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询错误"})
+			zap.L().Error("用户查询错误: " + err.Error())
+			return
+		}
+	}
+
+	page := ctx.DefaultQuery("page", "1")
+	pageInt, err := strconv.Atoi(page)
+	offset := (pageInt - 1) * 10
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		zap.L().Error("string转换int失败: " + err.Error())
+		return
+	}
+
+	var collects []models.UserCollection
+	var collectCount int64
+	err = dao.DB.Where("user_id = ?", user.ID).Order("create_time Desc").Offset(offset).Limit(10).Find(&collects).Count(&collectCount).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询错误"})
+		zap.L().Error("查询错误: " + err.Error())
+		return
+	}
+	totalPage := 0
+	if pageInt != 0 {
+		totalPage = int(math.Ceil(float64(collectCount) / float64(pageInt)))
+	}
+
+	collectionList := make([]map[string]any, 0)
+	for _, collection := range collects {
+		var news models.News
+		dao.DB.Find(&news, collection.NewsID)
+		collectionList = append(collectionList, news.ToBasicDict())
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"collections":  collectionList,
+		"total_page":   totalPage,
+		"current_page": pageInt,
+	}})
 }

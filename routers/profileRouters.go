@@ -12,7 +12,7 @@ func ProfileRouterInit(r *gin.Engine) {
 		profileRouters.GET("/user_info", profile.ProfileController{}.GetUserInfo)          // 查询用户信息
 		profileRouters.PUT("/user_info", profile.ProfileController{}.UpdateUserInfo)       // 更新用户信息                                          // 更新用户信息
 		profileRouters.PUT("/change_password", profile.ProfileController{}.ChangePassword) // 更换密码
-		profileRouters.GET("/collection")
+		profileRouters.GET("/collection", profile.ProfileController{}.GetCollection)       // 收藏列表
 		profileRouters.GET("/news_release")
 		profileRouters.POST("/news_release")
 	}
