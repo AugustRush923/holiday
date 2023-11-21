@@ -107,11 +107,11 @@ func (ProfileController) ChangePassword(ctx *gin.Context) {
 		}
 	}
 
-	var RequestJSON struct {
+	type RequestJSON struct {
 		OldPasswd string `json:"old_passwd"`
 		NewPasswd string `json:"new_passwd"`
 	}
-	var requestJSON = RequestJSON
+	var requestJSON RequestJSON
 	err := ctx.BindJSON(&requestJSON)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
@@ -180,7 +180,7 @@ func (ProfileController) GetCollection(ctx *gin.Context) {
 	}})
 }
 
-func (ProfileController) GetNewsRelease(ctx *gin.Context) {
+func (ProfileController) GetNewsCategory(ctx *gin.Context) {
 	var categories []models.Category
 	dao.DB.Find(&categories)
 	categoryList := make([]map[string]any, 0)
@@ -194,4 +194,52 @@ func (ProfileController) GetNewsRelease(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
 		"category_list": categoryList,
 	}})
+}
+
+func (ProfileController) ReleaseNews(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	var user models.User
+	userID := session.Get("user_id")
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询错误"})
+			zap.L().Error("用户查询错误: " + err.Error())
+			return
+		}
+	}
+
+	type RequestJSON struct {
+		Title      string `json:"title"`
+		Digest     string `json:"digest"`
+		Content    string `json:"content"`
+		IndexImage string `json:"index_image"`
+		CategoryID string `json:"category_id"`
+	}
+	requestJSON := new(RequestJSON)
+	err := ctx.BindJSON(&requestJSON)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "json数据绑定失败"})
+		zap.L().Error("json数据绑定失败: " + err.Error())
+		return
+	}
+	categoryID, _ := strconv.Atoi(requestJSON.CategoryID)
+	news := models.News{
+		Title:         requestJSON.Title,
+		Source:        "个人发布",
+		Digest:        requestJSON.Digest,
+		Content:       requestJSON.Content,
+		Clicks:        0,
+		IndexImageUrl: requestJSON.IndexImage,
+		CategoryID:    uint64(categoryID),
+		UserID:        uint64(user.ID),
+		Status:        1,
+	}
+	result := dao.DB.Create(&news)
+	if result.Error != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "新闻发布失败"})
+		zap.L().Error("创建失败：" + result.Error.Error())
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "提交成功,等待审核"})
 }
