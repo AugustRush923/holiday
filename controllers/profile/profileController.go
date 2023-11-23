@@ -283,3 +283,45 @@ func (ProfileController) GetNewsList(ctx *gin.Context) {
 		"news_list":    newsList,
 	}})
 }
+
+func (ProfileController) GetUserFollow(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	userID := session.Get("user_id")
+	var user models.User
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询失败"})
+			zap.L().Error("查询失败: " + err.Error())
+			return
+		}
+	}
+
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		zap.L().Error("page转化失败: " + err.Error())
+		page = 1
+	}
+
+	offset := (page - 1) * page
+	var count int64
+	var follows []models.UserFans
+	dao.DB.Where("followed_id = ?", user.ID).Offset(offset).Limit(10).Count(&count).Find(&follows)
+
+	FansList := make([]map[string]any, 0)
+	for _, follow := range follows {
+		var followUser models.User
+		dao.DB.Limit(1).Find(&followUser, follow.FollowedID)
+		FansList = append(FansList, followUser.ToDict())
+	}
+	totalPage := 0
+	if page != 0 {
+		totalPage = int(math.Ceil(float64(count) / float64(page)))
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"user":         FansList,
+		"count":        count,
+		"current_page": page,
+		"total_page":   totalPage,
+	}})
+}
