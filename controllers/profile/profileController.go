@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"fmt"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -357,5 +358,40 @@ func (ProfileController) GetOtherInfo(ctx *gin.Context) {
 		"is_followed": isFollowed,
 		"user_info":   user.ToDict(),
 		"other_info":  OtherUser.ToDict(),
+	}})
+}
+
+func (ProfileController) GetOtherNewsList(ctx *gin.Context) {
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		zap.L().Error("page转换失败：" + err.Error())
+		page = 1
+	}
+	userID := ctx.Query("user_id")
+	fmt.Println(userID)
+	offset := (page - 1) * page
+	var (
+		newsCount int64
+		news      []models.News
+		newsList  = make([]map[string]any, 0)
+	)
+	err = dao.DB.Where("user_id = ? AND status = 0", userID).Offset(offset).Limit(10).Find(&news).Count(&newsCount).Error
+	if err != nil {
+		zap.L().Error("查询失败：" + err.Error())
+	}
+
+	totalPage := 0
+	if page != 0 {
+		totalPage = int(math.Ceil(float64(newsCount) / float64(page)))
+	}
+
+	for _, n := range news {
+		newsList = append(newsList, n.ToReviewDict())
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"total_page":   totalPage,
+		"news_list":    newsList,
+		"current_page": page,
 	}})
 }
