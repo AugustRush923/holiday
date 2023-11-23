@@ -17,5 +17,6 @@ func ProfileRouterInit(r *gin.Engine) {
 		profileRouters.POST("/news_release", profile.ProfileController{}.ReleaseNews)      // 发布新闻信息
 		profileRouters.GET("/news_list", profile.ProfileController{}.GetNewsList)          // 用户发布的新闻列表
 		profileRouters.GET("/user_follow", profile.ProfileController{}.GetUserFollow)      // 用户粉丝列表
+		profileRouters.GET("/other_info", profile.ProfileController{}.GetOtherInfo)        // 查看其他用户信息
 	}
 }

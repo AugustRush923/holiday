@@ -325,3 +325,37 @@ func (ProfileController) GetUserFollow(ctx *gin.Context) {
 		"total_page":   totalPage,
 	}})
 }
+
+func (ProfileController) GetOtherInfo(ctx *gin.Context) {
+	session := sessions.Default(ctx)
+	userID := session.Get("user_id")
+	var user models.User
+	if userID != nil {
+		err := dao.DB.First(&user, userID).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "用户查询失败"})
+			zap.L().Error("查询失败: " + err.Error())
+			return
+		}
+	}
+	userid := ctx.Query("user_id")
+	var OtherUser models.User
+	err := dao.DB.First(&OtherUser, userid).Error
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"status": false, "message": "用户不存在"})
+		return
+	}
+
+	isFollowed := false
+	var count int64
+	dao.DB.Model(&models.UserFans{}).Where("follower_id = ? AND followed_id = ?", OtherUser.ID, user.ID).Count(&count)
+	if count > 0 {
+		isFollowed = true
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "data": map[string]any{
+		"is_followed": isFollowed,
+		"user_info":   user.ToDict(),
+		"other_info":  OtherUser.ToDict(),
+	}})
+}
