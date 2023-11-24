@@ -33,6 +33,7 @@ func main() {
 	routers.NewsRouterInit(r)
 	routers.IndexRouterInit(r)
 	routers.ProfileRouterInit(r)
+	routers.AdminRouterInit(r)
 
 	err := r.Run(strings.Join([]string{config.Cfg.Section("app").Key("ip_address").String(), config.Cfg.Section("app").Key("port").String()}, ":"))
 	if err != nil {
