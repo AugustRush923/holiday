@@ -10,7 +10,7 @@ type News struct {
 	IndexImageUrl string
 	CategoryID    uint64
 	UserID        uint64
-	Status        uint8
+	Status        int8
 	Reason        string
 }
 

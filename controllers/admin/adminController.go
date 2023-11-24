@@ -76,6 +76,7 @@ func (AdminController) Logout(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "登出成功"})
 }
+
 func (AdminController) Index(ctx *gin.Context) {
 	session := sessions.Default(ctx)
 	userID := session.Get("user_id")
@@ -124,7 +125,7 @@ func (AdminController) NewsReview(ctx *gin.Context) {
 	if keyword != "" {
 		query = strings.Join([]string{query, fmt.Sprintf("title like '%%%v%%'", keyword)}, " AND ")
 	}
-	fmt.Println(query)
+
 	err = dao.DB.Where(query).Offset(offset).Limit(10).Find(&news).Count(&newsCount).Error
 	if err != nil {
 		zap.L().Error("查询失败: " + err.Error())
@@ -146,4 +147,74 @@ func (AdminController) NewsReview(ctx *gin.Context) {
 		"news_list":    newsList,
 		"count":        newsCount,
 	}})
+}
+
+func (AdminController) NewsReviewDetail(ctx *gin.Context) {
+	newsID := ctx.Query("news_id")
+	if newsID == "" {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		return
+	}
+	var news models.News
+	err := dao.DB.First(&news, newsID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "数据不存在"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询错误"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "news_list": news.ToDict()})
+}
+
+func (AdminController) NewsReviewAudit(ctx *gin.Context) {
+	var requestJSON struct {
+		NewsID string `json:"news_id"`
+		Action string `json:"action"`
+		Reason string `json:"reason"`
+	}
+	var actionDict = map[string]bool{"accept": true, "reject": true}
+	err := ctx.BindJSON(&requestJSON)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "传参错误"})
+		zap.L().Error("传参错误: " + err.Error())
+		return
+	}
+	if !actionDict[requestJSON.Action] {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "传参错误"})
+		return
+	}
+
+	var news models.News
+	err = dao.DB.First(&news, requestJSON.NewsID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "数据不存在"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询错误"})
+		return
+	}
+
+	if requestJSON.Action == "accept" {
+		err = dao.DB.Model(&news).Update("status", 0).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "更新错误"})
+			zap.L().Error("更新错误: " + err.Error())
+			return
+		}
+	} else {
+		if requestJSON.Reason == "" {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数缺失"})
+			return
+		}
+		err = dao.DB.Model(&news).Updates(models.News{Status: -1, Reason: requestJSON.Reason}).Error
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "更新错误"})
+			zap.L().Error("更新错误: " + err.Error())
+			return
+		}
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "审核成功"})
 }
