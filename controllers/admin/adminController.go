@@ -78,20 +78,12 @@ func (AdminController) Logout(ctx *gin.Context) {
 }
 
 func (AdminController) Index(ctx *gin.Context) {
-	session := sessions.Default(ctx)
-	userID := session.Get("user_id")
-	var user models.User
-	if userID != nil {
-		err := dao.DB.First(&user, userID).Error
-		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "查询失败"})
-			zap.L().Error("查询失败: " + err.Error())
-			return
-		}
-	}
-	userIsEmpty := user == models.User{}
-	if userIsEmpty {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "未登录"})
+	userInfo, _ := ctx.Get("user")
+
+	user, ok := userInfo.(models.User)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "断言错误"})
+		zap.L().Error("断言错误")
 		return
 	}
 
