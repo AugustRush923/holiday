@@ -387,3 +387,34 @@ func (AdminController) UserCount(ctx *gin.Context) {
 		"active_count": activeCount,
 	})
 }
+
+func (AdminController) UserList(ctx *gin.Context) {
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		zap.L().Error("string转换int失败: " + err.Error())
+		page = 1
+	}
+	offset := (page - 1) * 10
+
+	var (
+		users      = make([]models.User, 0, 10)
+		userList   = make([]gin.H, 0, 10)
+		usersCount int64
+	)
+
+	dao.DB.Where("is_admin = 0").Order("last_login Desc").Offset(offset).Limit(10).Find(&users).Count(&usersCount)
+
+	for _, user := range users {
+		userList = append(userList, user.ToDict())
+	}
+
+	totalPage := int(math.Ceil(float64(usersCount) / float64(10)))
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":       false,
+		"users_list":   userList,
+		"count":        usersCount,
+		"current_page": page,
+		"total_page":   totalPage,
+	})
+}

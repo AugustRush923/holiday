@@ -26,5 +26,6 @@ func AdminRouterInit(r *gin.Engine) {
 		adminLoginRequireRouters.PUT("/category/:category_id", admin.AdminController{}.EditCategory)  // 分类编辑
 		adminLoginRequireRouters.POST("/category", admin.AdminController{}.AddCategory)               // 分类新增
 		adminLoginRequireRouters.GET("/user_count", admin.AdminController{}.UserCount)                // 用户统计
+		adminLoginRequireRouters.GET("/user_list", admin.AdminController{}.UserList)                  // 用户管理列表
 	}
 }
