@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type AdminController struct {
@@ -344,4 +345,45 @@ func (AdminController) AddCategory(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "创建成功"})
+}
+
+func (AdminController) UserCount(ctx *gin.Context) {
+	// 查询总人数
+	var totalCount int64
+	dao.DB.Model(&models.User{}).Where("is_admin != 1").Count(&totalCount)
+	// 查询月新增人数
+	var monCount int64
+	now := time.Now()
+	firstDayOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	dao.DB.Model(&models.User{}).Where("create_time >= ? AND is_admin = 0", firstDayOfMonth).Count(&monCount)
+
+	// 查询日新增数
+	var dayCount int64
+	firstDayOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dao.DB.Model(&models.User{}).Where("create_time >= ? AND is_admin = 0", firstDayOfDay).Count(&dayCount)
+
+	// 查询每日活跃人数
+	var (
+		activeDate  = make([]string, 0)
+		activeCount = make([]int64, 0)
+	)
+
+	for i := 0; i < 31; i++ {
+		var count int64
+		beginDate := time.Date(now.Year(), now.Month(), now.Day()-i, 0, 0, 0, 0, now.Location())
+		endDate := time.Date(now.Year(), now.Month(), now.Day()-i, 23, 59, 59, 99999999, now.Location())
+		activeDate = append(activeDate, beginDate.Format("2006-01-02"))
+
+		dao.DB.Model(&models.User{}).Where("is_admin = 0 AND last_login BETWEEN ? AND ?", beginDate, endDate).Count(&count)
+		activeCount = append(activeCount, count)
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":       true,
+		"total_count":  totalCount,
+		"mon_count":    monCount,
+		"day_count":    dayCount,
+		"active_date":  activeDate,
+		"active_count": activeCount,
+	})
 }

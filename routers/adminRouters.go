@@ -20,6 +20,7 @@ func AdminRouterInit(r *gin.Engine) {
 		adminRouters.GET("/categories", admin.AdminController{}.CategoryList)             // 分类列表
 		adminRouters.PUT("/category/:category_id", admin.AdminController{}.EditCategory)  // 分类编辑
 		adminRouters.POST("/category", admin.AdminController{}.AddCategory)               // 分类新增
+		adminRouters.GET("/user_count", admin.AdminController{}.UserCount)                // 用户统计
 	}
 	adminUseMiddlewareRouters := r.Group("/admin", middlewares.LoginRequireMiddleware)
 	{
