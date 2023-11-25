@@ -142,7 +142,7 @@ func (AdminController) NewsReview(ctx *gin.Context) {
 }
 
 func (AdminController) NewsReviewDetail(ctx *gin.Context) {
-	newsID := ctx.Query("news_id")
+	newsID := ctx.Param("news_id")
 	if newsID == "" {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
 		return
@@ -209,4 +209,139 @@ func (AdminController) NewsReviewAudit(ctx *gin.Context) {
 		}
 	}
 	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "审核成功"})
+}
+
+func (AdminController) NewsList(ctx *gin.Context) {
+	keyword := ctx.Query("keyword")
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		zap.L().Error("string转化int失败: " + err.Error())
+		page = 1
+	}
+	offset := (page - 1) * 10
+
+	news := make([]models.News, 0, 10)
+	var (
+		newsCount int64
+		query     = ""
+		newsList  []gin.H
+	)
+	if keyword != "" {
+		query = fmt.Sprintf("Title like \"%%%v%%\"", keyword)
+	}
+	dao.DB.Where(query).Offset(offset).Limit(10).Order("create_time Desc").Find(&news).Count(&newsCount)
+
+	totalPage := 0
+	totalPage = int(math.Ceil(float64(newsCount) / float64(10)))
+
+	for _, n := range news {
+		newsList = append(newsList, n.ToBasicDict())
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":       true,
+		"news_list":    newsList,
+		"count":        newsCount,
+		"current_page": page,
+		"total_page":   totalPage,
+	})
+}
+
+func (AdminController) CategoryList(ctx *gin.Context) {
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		zap.L().Error("string转化int失败: " + err.Error())
+		page = 1
+	}
+	offset := (page - 1) * 10
+
+	var (
+		categoryCount int64
+		category      = make([]models.Category, 0, 10)
+		categoryList  []gin.H
+	)
+	dao.DB.Where("id != 1").Offset(offset).Limit(10).Find(&category).Count(&categoryCount)
+
+	for _, c := range category {
+		categoryList = append(categoryList, c.ToDict())
+	}
+
+	totalPage := int(math.Ceil(float64(categoryCount) / float64(10)))
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":        true,
+		"category_list": categoryList,
+		"count":         categoryCount,
+		"current_page":  page,
+		"total_page":    totalPage,
+	})
+}
+
+func (AdminController) EditNews(ctx *gin.Context) {
+	newsID, err := strconv.Atoi(ctx.Param("news_id"))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		zap.L().Error("string转int失败: " + err.Error())
+		return
+	}
+
+	var news = models.News{BaseModel: models.BaseModel{ID: uint(newsID)}}
+	err = ctx.BindJSON(&news)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数校验失败"})
+		zap.L().Error("参数校验失败: " + err.Error())
+		return
+	}
+	err = dao.DB.Updates(&news).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "更新失败"})
+		zap.L().Error("更新失败: " + err.Error())
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "保存成功"})
+}
+
+func (AdminController) EditCategory(ctx *gin.Context) {
+	categoryID, err := strconv.Atoi(ctx.Param("category_id"))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数错误"})
+		zap.L().Error("string转int失败: " + err.Error())
+		return
+	}
+	category := models.Category{
+		BaseModel: models.BaseModel{ID: uint(categoryID)},
+	}
+
+	err = ctx.BindJSON(&category)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数校验失败"})
+		zap.L().Error("参数校验失败: " + err.Error())
+		return
+	}
+
+	err = dao.DB.Model(&category).Update("name", category.Name).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "更新失败"})
+		zap.L().Error("更新失败: " + err.Error())
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "保存成功"})
+}
+
+func (AdminController) AddCategory(ctx *gin.Context) {
+	var category models.Category
+	err := ctx.BindJSON(&category)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "参数校验失败"})
+		zap.L().Error("参数校验失败: " + err.Error())
+		return
+	}
+	err = dao.DB.Create(&category).Error
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "创建失败"})
+		zap.L().Error("创建失败: " + err.Error())
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"status": true, "message": "创建成功"})
 }

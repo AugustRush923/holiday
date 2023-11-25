@@ -8,7 +8,7 @@ type News struct {
 	Content       string
 	Clicks        uint64
 	IndexImageUrl string
-	CategoryID    uint64
+	CategoryID    uint64 `json:"category_id"`
 	UserID        uint64
 	Status        int8
 	Reason        string
@@ -34,8 +34,8 @@ func (news News) ToDict() map[string]any {
 		"news_category_id":     news.CategoryID,
 		"news_status":          news.Status,
 		"news_reason":          news.Reason,
-		"news_created_time":    news.CreatedTime,
-		"news_updated_time":    news.UpdatedTime,
+		"news_created_time":    news.CreatedTime.Format("2006-01-02 15:04:05"),
+		"news_updated_time":    news.UpdatedTime.Format("2006-01-02 15:04:05"),
 	}
 }
 
